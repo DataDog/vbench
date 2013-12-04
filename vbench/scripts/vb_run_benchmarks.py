@@ -1,12 +1,15 @@
 import sys
 import cPickle as pickle
 
-if len(sys.argv) != 3:
-    print('Usage: script.py input output')
+if len(sys.argv) != 4:
+    print('Usage: script.py input output setup')
     sys.exit()
 
-in_path, out_path = sys.argv[1:]
+in_path, out_path, setup_path = sys.argv[1:]
 benchmarks = pickle.load(open(in_path))
+setup_code = open(setup_path).read()
+
+exec setup_code
 
 results = {}
 errors = 0

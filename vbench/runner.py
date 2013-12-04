@@ -49,7 +49,8 @@ class BenchmarkRunner(object):
                  start_date=None, overwrite=False,
                  module_dependencies=None,
                  always_clean=False,
-                 use_blacklist=True):
+                 use_blacklist=True,
+                 script_setup=None):
         log.info("Initializing benchmark runner for %d benchmarks" % (len(benchmarks)))
         self._benchmarks = None
         self._checksums = None
@@ -77,6 +78,7 @@ class BenchmarkRunner(object):
                                     dependencies=module_dependencies)
 
         self.benchmarks = benchmarks
+        self.script_setup = script_setup
 
     def _get_benchmarks(self):
         return self._benchmarks
@@ -168,12 +170,17 @@ class BenchmarkRunner(object):
 
         pickle_path = os.path.join(self.tmp_dir, 'benchmarks.pickle')
         results_path = os.path.join(self.tmp_dir, 'results.pickle')
+        setup_path = os.path.join(self.tmp_dir, 'script_setup.py')
         if os.path.exists(results_path):
             os.remove(results_path)
         pickle.dump(need_to_run, open(pickle_path, 'w'))
+        with open(setup_path, 'w') as setup_file:
+            setup_file.write(self.script_setup or 'pass')
 
         # run the process
-        cmd = 'python vb_run_benchmarks.py %s %s' % (pickle_path, results_path)
+        cmd = 'python vb_run_benchmarks.py %s %s %s' % (pickle_path,
+                                                        results_path,
+                                                        setup_path)
         log.debug("CMD: %s" % cmd)
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
