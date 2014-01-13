@@ -23,7 +23,8 @@ class BenchmarkDB(object):
         self._benchmarks = Table('benchmarks', self._metadata,
             Column('checksum', sqltypes.String(32), primary_key=True),
             Column('name', sqltypes.String(200), nullable=False),
-            Column('description', sqltypes.Text)
+            Column('description', sqltypes.Text),
+            Column('module', sqltypes.String(200))
         )
         self._results = Table('results', self._metadata,
             Column('checksum', sqltypes.String(32),
@@ -91,7 +92,8 @@ class BenchmarkDB(object):
         """
         ins = self._benchmarks.insert()
         ins = ins.values(name=bm.name, checksum=bm.checksum,
-                         description=bm.description)
+                         description=bm.description,
+                         module=bm.module_name)
         self.conn.execute(ins)  # XXX: return the result?
 
     def delete_benchmark(self, checksum):
