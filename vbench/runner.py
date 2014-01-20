@@ -1,6 +1,7 @@
 import cPickle as pickle
 import os
 import subprocess
+from collections import defaultdict
 
 from vbench.git import GitRepo, BenchRepo
 from vbench.db import BenchmarkDB
@@ -49,8 +50,7 @@ class BenchmarkRunner(object):
                  start_date=None, overwrite=False,
                  module_dependencies=None,
                  always_clean=False,
-                 use_blacklist=True,
-                 script_setup=None):
+                 use_blacklist=True):
         log.info("Initializing benchmark runner for %d benchmarks" % (len(benchmarks)))
         self._benchmarks = None
         self._checksums = None
@@ -78,7 +78,6 @@ class BenchmarkRunner(object):
                                     dependencies=module_dependencies)
 
         self.benchmarks = benchmarks
-        self.script_setup = script_setup
 
     def _get_benchmarks(self):
         return self._benchmarks
@@ -168,14 +167,39 @@ class BenchmarkRunner(object):
 
         self.bench_repo.switch_to_revision(rev)
 
+        # batch benchmarks by the script setup required.
+        batches = defaultdict(list)
+        for bm in need_to_run:
+            batches[bm.script_setup].append(bm)
+
+        n_active_benchmarks = 0
+        results = {}
+
+        for idx, (setup, batch) in enumerate(batches.iteritems()):
+            log.info('Running revision %s, batch %d of %d' % (rev,
+                                                              idx + 1,
+                                                              len(batches)))
+            n_active_benchmarks += len(batch)
+            batch_results, should_clean = self._run_batch(batch, setup)
+            results.update(batch_results)
+
+            if should_clean:
+                log.warn('HARD CLEANING!')
+                self.bench_repo.hard_clean()
+                self.bench_repo.switch_to_revision(rev)
+
+        return n_active_benchmarks, results
+
+    def _run_batch(self, benchmarks, script_setup=None):
+
         pickle_path = os.path.join(self.tmp_dir, 'benchmarks.pickle')
         results_path = os.path.join(self.tmp_dir, 'results.pickle')
         setup_path = os.path.join(self.tmp_dir, 'script_setup.py')
         if os.path.exists(results_path):
             os.remove(results_path)
-        pickle.dump(need_to_run, open(pickle_path, 'w'))
+        pickle.dump(benchmarks, open(pickle_path, 'w'))
         with open(setup_path, 'w') as setup_file:
-            setup_file.write(self.script_setup or 'pass')
+            setup_file.write(script_setup or 'pass')
 
         # run the process
         cmd = 'python vb_run_benchmarks.py %s %s %s' % (pickle_path,
@@ -187,6 +211,7 @@ class BenchmarkRunner(object):
                                 shell=True,
                                 cwd=self.tmp_dir)
         stdout, stderr = proc.communicate()
+        should_clean = False
 
         if stdout:
             log.debug('stdout: %s' % stdout)
@@ -198,12 +223,11 @@ class BenchmarkRunner(object):
             log.warn("stderr: %s" % stderr)
             if ("object has no attribute" in stderr or
                 'ImportError' in stderr):
-                log.warn('HARD CLEANING!')
-                self.bench_repo.hard_clean()
+                should_clean = True
 
         if not os.path.exists(results_path):
-            log.warn('Failed for revision %s' % rev)
-            return len(need_to_run), {}
+            log.warn('Batch failed.')
+            return {}, should_clean
 
         results = pickle.load(open(results_path, 'r'))
 
@@ -212,7 +236,7 @@ class BenchmarkRunner(object):
         except OSError:
             pass
 
-        return len(need_to_run), results
+        return results, should_clean
 
     def _get_benchmarks_for_rev(self, rev):
         existing_results = self.db.get_rev_results(rev)

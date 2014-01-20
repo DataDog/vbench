@@ -24,7 +24,7 @@ class Benchmark(object):
 
     def __init__(self, code, setup, ncalls=None, repeat=3, cleanup=None,
                  name=None, module_name=None, description=None, start_date=None,
-                 logy=False):
+                 logy=False, script_setup=None):
         self.code = code
         self.setup = setup
         self.cleanup = cleanup or ''
@@ -43,6 +43,7 @@ class Benchmark(object):
         self.description = description
         self.start_date = start_date
         self.logy = logy
+        self.script_setup = script_setup
 
     def __repr__(self):
         return "Benchmark('%s')" % self.name
