@@ -1,6 +1,5 @@
 #/usr/bin/env python
 
-from numpy.distutils.misc_util import Configuration
 from numpy.distutils.core import setup
 
 DESCRIPTION = "Performance benchmarking and monitoring tool"
